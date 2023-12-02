@@ -1,18 +1,17 @@
-using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
 
-public class ProjectDefine : MonoBehaviour
+namespace Settings
 {
-    // Start is called before the first frame update
-    void Start()
+    public class ProjectDefine : MonoBehaviour
     {
-        
-    }
+        /// <summary>
+        /// 書き換えたい文字列
+        /// </summary>
+        private string Value { get; } = "Hello World";
 
-    // Update is called once per frame
-    void Update()
-    {
-        
+        void Start()
+        {
+            Debug.Log(Value);
+        }
     }
 }
