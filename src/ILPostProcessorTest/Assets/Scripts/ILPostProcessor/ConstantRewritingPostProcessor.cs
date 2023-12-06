@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using Mono.Cecil.Cil;
+using Mono.Cecil.Rocks;
 using Settings;
 using Unity.CompilationPipeline.Common.Diagnostics;
 using Unity.CompilationPipeline.Common.ILPostProcessing;
@@ -28,52 +29,43 @@ namespace Constant.Rewriting.CodeGen
             var diagnosticMessageList = new List<DiagnosticMessage>();
             foreach (var type in assembly.MainModule.Types)
             {
-                // Settings.ProjectDefine型を探す
-                if (type.FullName != "Settings.ProjectDefine")
+                foreach (var property in type.Properties)
                 {
-                    continue;
-                }
-
-                // Settings.ProjectDefineのコンストラクタを取得する
-                var methodDefinition = type.Methods.FirstOrDefault((method) => method.Name == ".ctor");
-                
-                if (methodDefinition == null)
-                {
-                    diagnosticMessageList.Add(new DiagnosticMessage()
-                    {
-                        MessageData = ".ctorが見つかりませんでした。",
-                        DiagnosticType = DiagnosticType.Warning
-                    });
-                    continue;
-                }
-
-                var postProcessor = methodDefinition.Body.GetILProcessor();
-
-                for (int i = 0; i < postProcessor.Body.Instructions.Count; i++)
-                {
-                    var instruction = postProcessor.Body.Instructions[i];
-                    // 命令のオペコードがStfldでない場合はスキップ
-                    if (instruction.OpCode != OpCodes.Stfld)
+                    if (!property.HasCustomAttributes)
                     {
                         continue;
                     }
-                    // 命令のオペランドにValueが含まれていない場合はスキップ
-                    if (!instruction.Operand.ToString().Contains($"<{nameof(ProjectDefine.Value)}>k__BackingField"))
-                    {
-                        continue;
-                    }
-                    
-                    //　含まれている場合、一つ前の命令を取得し、オペコードがLdstrでない場合はスキップ
-                    var prevInstruction = postProcessor.Body.Instructions[i - 1];
-                    if (prevInstruction.OpCode != OpCodes.Ldstr)
-                    {
-                        continue;
-                    }
-                    // 書き換え
-                    prevInstruction.Operand = "Hello ILPostProcessor";
-                }
 
-                return ILPostProcessUtility.GetResult(assembly, diagnosticMessageList);
+                    var attribute = property.CustomAttributes.FirstOrDefault(attr => attr.AttributeType.FullName == typeof(RewritingAttribute).FullName);
+
+                    if (attribute == null)
+                    {
+                        continue;
+                    }
+
+                    var constructors = type.GetConstructors();
+                    foreach (var method in constructors)
+                    {
+                        var postProcessor = method.Body.GetILProcessor();
+                        var instruction = postProcessor.Body.Instructions.FirstOrDefault(
+                            inst => inst.Operand != null && inst.Operand.ToString().Contains($"<{property.Name}>k__BackingField")
+                        );
+                        
+                        if (instruction == null)
+                        {
+                            continue;
+                        }
+                        
+                        var prevInstruction = instruction.Previous;
+                        if (prevInstruction.OpCode != OpCodes.Ldstr)
+                        {
+                            continue;
+                        }
+                        // 書き換え
+                        prevInstruction.Operand = "Hello ILPostProcessor";
+                    }
+                    return ILPostProcessUtility.GetResult(assembly, diagnosticMessageList);
+                }
             }
             return new ILPostProcessResult(null, diagnosticMessageList);
         }

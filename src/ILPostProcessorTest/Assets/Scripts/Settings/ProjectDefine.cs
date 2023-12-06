@@ -1,3 +1,5 @@
+using System;
+
 namespace Settings
 {
     public class ProjectDefine
@@ -10,6 +12,7 @@ namespace Settings
         /// <summary>
         /// 書き換えたい文字列
         /// </summary>
+        [Rewriting]
         public string Value { get; } = "Hello World";
     }
 }
